@@ -1,4 +1,4 @@
-# Hexa
+# Hex
 A minimalist game that explores your reflexes and defies you to conquer as many hexagons as you can.
 
 ![Hexa 1](hexa1.png) ![Hexa 2](hexa2.png)
