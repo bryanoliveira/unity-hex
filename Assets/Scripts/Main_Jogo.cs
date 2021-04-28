@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
@@ -7,6 +8,9 @@ public class Main_Jogo : MonoBehaviour
 {
 
     // ---- CONSTS
+    private const int ESTADO_JOGANDO = 0;
+    private const int ESTADO_FIM = 1;
+    private const int ESTADO_RECORDES = 2;
     private const int cameraDist = -10;
 
     private const float velocidadeFoco = 3f;
@@ -47,7 +51,6 @@ public class Main_Jogo : MonoBehaviour
     [SerializeField]
     private Text txtBotaoVibracao;
 
-    public static int recorde;
     public static int estado = 0;
     public static int pontos;
     private static int proxRecordeIndice;
@@ -64,8 +67,6 @@ public class Main_Jogo : MonoBehaviour
     [SerializeField]
     private GameObject paginaInsiraNome;
     [SerializeField]
-    private GameObject paginaLogado;
-    [SerializeField]
     private GameObject paginaPausa;
     [SerializeField]
     private GameObject botaoDeslogar;
@@ -79,28 +80,18 @@ public class Main_Jogo : MonoBehaviour
     private GameObject prefabHex;
 
     [SerializeField]
-    private Transform scrollAmigos;
-    [SerializeField]
     private Transform scrollRecordes;
     [SerializeField]
     private Transform scrollPause;
 
-    private Tabela[] tabelaScores;
+    private List<Recorde> tabelaRecordes;
 
     [SerializeField]
     private UnityStandardAssets.ImageEffects.ColorCorrectionCurves cc;
 
-    [SerializeField]
-    private UmRecorde_Referencias jogadorRef;
-
     void Awake()
     {
-        // atualiza os recordes
-        if (PlayerPrefs.HasKey("recorde"))
-            recorde = PlayerPrefs.GetInt("recorde");
-        else
-            recorde = 1;
-        txtRecorde.text = recorde.ToString();
+        SetTabela();
 
         // prepara o primeiro hexagono
         StartCoroutine(Foca());
@@ -160,38 +151,29 @@ public class Main_Jogo : MonoBehaviour
         }
     }
 
+    public void SetTabela()
+    {
+        tabelaRecordes = new List<Recorde>();
+        for (int i = 0; PlayerPrefs.HasKey("recordeLocal" + i); i++)
+        {
+            tabelaRecordes.Add(new Recorde(PlayerPrefs.GetString("nomeRecordeLocal" + i), PlayerPrefs.GetInt("recordeLocal" + i)));
+
+        }
+        proxRecordeIndice = tabelaRecordes.Count;
+        ProximoDesafio();
+    }
+
     public void AddPontos()
     {
         pontos++;
         animPontos.SetTrigger("up");
-        if (tabelaScores != null && tabelaScores.Length > 0)
+        if (proxRecordeIndice >= 0)
         {
-            if (proxRecordeIndice >= 0)
+            if (pontos > proxRecorde && !emTutorial)
             {
-                if (proxRecordeIndice > 0)
-                {
-                    txtRecorde.text = (pontos - recorde - 1).ToString();
-                    if (pontos > proxRecorde && !emTutorial)
-                    {
-                        Avisa(tabelaScores[proxRecordeIndice].nome + " superado!");
-                        ProximoDesafio();
-                    }
-                }
+                Avisa(tabelaRecordes[proxRecordeIndice].nome + " superado!");
+                ProximoDesafio();
             }
-            else
-            {
-                txtRecorde.text = "new";
-            }
-        }
-        else if (pontos <= recorde)
-        {
-            txtRecorde.text = (pontos - recorde - 1).ToString();
-            txtNomeRecorde.text = "recorde";
-        }
-        else
-        {
-            txtRecorde.text = "novo";
-            txtNomeRecorde.text = "recorde";
         }
 
         txtPontos.text = pontos.ToString();
@@ -205,25 +187,25 @@ public class Main_Jogo : MonoBehaviour
     private void ProximoDesafio()
     {
         proxRecordeIndice--;
-        txtNomeRecorde.text = tabelaScores[proxRecordeIndice].nome;
-        proxRecorde = tabelaScores[proxRecordeIndice].score;
+        if (proxRecordeIndice >= 0)
+        {
+            txtNomeRecorde.text = tabelaRecordes[proxRecordeIndice].nome;
+            proxRecorde = tabelaRecordes[proxRecordeIndice].score;
+            txtRecorde.text = proxRecorde.ToString();
+        }
+        else
+        {
+            txtRecorde.text = "novo";
+            txtNomeRecorde.text = "recorde";
+        }
     }
 
     public void ResetaPontos()
     {
-        if (pontos > recorde)
-        {
-            recorde = pontos;
-        }
         pontos = 1;
         txtPontos.text = "1";
-        txtRecorde.text = (pontos - recorde - 1).ToString();
-
-        if (tabelaScores != null)
-        {
-            proxRecordeIndice = tabelaScores.Length;
-            ProximoDesafio();
-        }
+        proxRecordeIndice = tabelaRecordes.Count;
+        ProximoDesafio();
     }
 
     public void Toque()
@@ -261,7 +243,6 @@ public class Main_Jogo : MonoBehaviour
         {
             Time.timeScale = 0;
             MostraRecordes(scrollPause);
-            jogadorRef.recorde.text = recorde.ToString();
         }
         else
         {
@@ -322,6 +303,7 @@ public class Main_Jogo : MonoBehaviour
 
     public void Reiniciar()
     {
+        ResetaPontos();
         StartCoroutine(ReiniciaRoutine());
     }
     private IEnumerator ReiniciaRoutine()
@@ -329,7 +311,7 @@ public class Main_Jogo : MonoBehaviour
         Time.timeScale = 1;
         animFadeIn.SetTrigger("FadeOut");
         yield return new WaitForSeconds(0.52f);
-        estado = 0;
+        estado = ESTADO_JOGANDO;
         Hexagono_Controlador.Reiniciar();
         SceneManager.LoadScene(0);
     }
@@ -342,9 +324,6 @@ public class Main_Jogo : MonoBehaviour
         botaoPausa.SetActive(false);
         txtPontos.gameObject.SetActive(false);
         txtRecorde.transform.parent.gameObject.SetActive(false);
-        string tmpNomeRecorde = txtNomeRecorde.text;
-        int tmpRecorde = recorde;
-        txtNomeRecorde.text = "";
         ResetaPontos();
 
         // apresenta como jogar
@@ -368,15 +347,8 @@ public class Main_Jogo : MonoBehaviour
         yield return StartCoroutine(PassoTutorial("Seus pontos aparecem lá em cima"));
 
         // apresenta os recordes e coloca um recorde temporario
-        recorde = 10;
-        txtRecorde.text = (pontos - recorde - 1).ToString();
         txtRecorde.transform.parent.gameObject.SetActive(true);
         yield return StartCoroutine(PassoTutorial("Os pontos que faltam para bater o recorde aparecem abaixo"));
-        // espera bater o recorde
-        Avisa("Bata o recorde!", true);
-        while (pontos < 5)
-            yield return null;
-        Avisa("", false);
         yield return new WaitForSeconds(0.5f);
 
         // apresenta os coringas
@@ -403,12 +375,6 @@ public class Main_Jogo : MonoBehaviour
         // finaliza
         Avisa("Tutorial completo!");
 
-        // volta o jogo ao normal para continuar rodada
-        // habilita essa parte se conseguir consertar os bugs que isso causa (provavelmente por causa dos coringas)
-        //txtNomeRecorde.text = tmpNomeRecorde;
-        recorde = tmpRecorde;
-        //txtRecorde.text = tmpRecorde.ToString();
-        //Time.timeScale = 1;
         // inserir conquista
 
         emTutorial = false;
@@ -433,7 +399,7 @@ public class Main_Jogo : MonoBehaviour
     public void Perde()
     {
         BGFLash(Color.white);
-        if (pontos > 4 && !emTutorial)
+        if (pontos > 2 && !emTutorial)
         {
             botaoTela.SetActive(false);
             StartCoroutine(DiminuiEFinaliza());
@@ -462,10 +428,25 @@ public class Main_Jogo : MonoBehaviour
         PlayerPrefs.SetString("ultimoRecordista", nomeRecordeAtual);
         for (int i = 0; i < 10; i++)
         {
+            // ordena a tabela de recordes na insersão
             if (PlayerPrefs.HasKey("recordeLocal" + i))
             {
+                // se o usuário já está na lista
+                if (PlayerPrefs.GetString("nomeRecordeLocal" + i) == nomeRecordeAtual)
+                {
+                    // se a pontuação é maior
+                    if (PlayerPrefs.GetInt("recordeLocal" + i) < recordeAtual)
+                    {
+                        // substitui a pontuação
+                        PlayerPrefs.SetInt("recordeLocal" + i, recordeAtual);
+                    }
+                    // senão só ignora
+                    break;
+                }
                 if (PlayerPrefs.GetInt("recordeLocal" + i) < recordeAtual)
                 {
+                    // se o recorde atual é maior, coloca ele na lista e carrega o 
+                    // recorde menor pra próxima posição
                     int tempRecorde = recordeAtual;
                     string tempNome = nomeRecordeAtual;
                     recordeAtual = PlayerPrefs.GetInt("recordeLocal" + i);
@@ -476,6 +457,7 @@ public class Main_Jogo : MonoBehaviour
             }
             else
             {
+                // se chegamos numa posição ainda não ocupada, ocupa ela
                 PlayerPrefs.SetInt("recordeLocal" + i, recordeAtual);
                 PlayerPrefs.SetString("nomeRecordeLocal" + i, nomeRecordeAtual);
                 break;
@@ -485,21 +467,16 @@ public class Main_Jogo : MonoBehaviour
 
     public void MostraRecordesFim()
     {
-        estado = 2;
+        estado = ESTADO_RECORDES;
         if (txtNomeLocal.text != "")
             SalvaRecordeLocal();
         paginaInsiraNome.SetActive(false);
         paginaRecordes.SetActive(true);
 
-        MostraRecordesLocais(scrollRecordes);
+        MostraRecordes(scrollRecordes);
     }
 
     private void MostraRecordes(Transform pai)
-    {
-        MostraRecordesLocais(pai);
-    }
-
-    private void MostraRecordesLocais(Transform pai)
     {
         // os recordes são armazenados em ordem, isso é feito no SalvaRecordeLocal(); por isso 'i' é a posição do recordista
         for (int i = 0; PlayerPrefs.HasKey("recordeLocal" + i); i++)
@@ -507,21 +484,6 @@ public class Main_Jogo : MonoBehaviour
             AdicionaRecordeView(pai, PlayerPrefs.GetString("nomeRecordeLocal" + i), PlayerPrefs.GetInt("recordeLocal" + i).ToString(), (i + 1).ToString(), (i + 1));
         }
     }
-
-    public void AtivaDemo()
-    {
-        if (PlayerPrefs.GetInt("demonstracao") == 1)
-        {
-            PlayerPrefs.SetInt("demonstracao", 0);
-            Avisa("Demonstracao desligada");
-        }
-        else
-        {
-            PlayerPrefs.SetInt("demonstracao", 1);
-            Avisa("Demonstracao ligada");
-        }
-    }
-
     public void Resetar()
     {
         PlayerPrefs.DeleteAll();
@@ -536,11 +498,8 @@ public class Main_Jogo : MonoBehaviour
 
     public void SelecionaSkin(int qual)
     {
-        if (PlayerPrefs.GetInt("demonstracao") == 1)
-        {
-            PlayerPrefs.SetInt("skin", qual);
-            Reiniciar();
-        }
+        PlayerPrefs.SetInt("skin", qual);
+        Reiniciar();
     }
 
     public void SetVibracao()
@@ -574,18 +533,13 @@ public class Main_Jogo : MonoBehaviour
     }
 
 
-    public void AdicionaRecordeView(string nome, string recorde, string posicaoTexto, int posicao)
-    {
-        if (estado < 1)
-        { // estado = 1: perdeu, mostrando tela de recordes
-            AdicionaRecordeView(scrollAmigos, nome, recorde, posicaoTexto, posicao);
-        }
-        else
-        {
-            AdicionaRecordeView(scrollRecordes, nome, recorde, posicaoTexto, posicao);
-        }
-    }
-    public void AdicionaRecordeView(Transform view, string nome, string recorde, string posicaoTexto, int posicao)
+    public void AdicionaRecordeView(
+        Transform view,
+        string nome,
+        string recorde,
+        string posicaoTexto,
+        int posicao
+    )
     {
         // se os recordes já estão instanciados, só atualiza os dados
         // obs: isso é feito uma vez por rodada, portanto não tem como existirem mais recordes salvos dos que já estão instanciados. 
@@ -593,13 +547,13 @@ public class Main_Jogo : MonoBehaviour
         if (posicao < view.childCount)
         {
             // será utilizado 3 vezes, melhor criar a referencia
-            UmRecorde_Referencias refAmigo = view.GetChild(posicao).gameObject.GetComponent<UmRecorde_Referencias>();
+            UmRecorde component = view.GetChild(posicao).gameObject.GetComponent<UmRecorde>();
             // pega o nome do dicionario, remove acentos e atribui ao objeto
-            refAmigo.nome.text = nome;
+            component.nome.text = nome;
             // pega o recorde já como string
-            refAmigo.recorde.text = recorde;
+            component.recorde.text = recorde;
             // mostra a posição
-            refAmigo.posicao.text = posicaoTexto;
+            component.posicao.text = posicaoTexto;
         }
         else
         {
@@ -610,13 +564,14 @@ public class Main_Jogo : MonoBehaviour
             // conserta a escala
             amigo.GetComponent<RectTransform>().localScale = new Vector3(1, 1, 1);
             // será utilizado 3 vezes, melhor criar a referencia
-            UmRecorde_Referencias refAmigo = amigo.GetComponent<UmRecorde_Referencias>();
+            UmRecorde component = amigo.GetComponent<UmRecorde>();
+            component.transform.position = new Vector3(0, 0, 0);
             // pega o nome do dicionario, remove acentos e atribui ao objeto
-            refAmigo.nome.text = nome;
+            component.nome.text = nome;
             // pega o recorde já como string
-            refAmigo.recorde.text = recorde;
+            component.recorde.text = recorde;
             // mostra a posição
-            refAmigo.posicao.text = posicaoTexto;
+            component.posicao.text = posicaoTexto;
         }
     }
 
@@ -624,13 +579,5 @@ public class Main_Jogo : MonoBehaviour
     {
         spriteBackground.color = cor;
         animBackground.SetTrigger("Flash");
-    }
-
-
-    public void SetTabela(Tabela[] tabelaScores)
-    {
-        this.tabelaScores = tabelaScores;
-        proxRecordeIndice = tabelaScores.Length;
-        ProximoDesafio();
     }
 }

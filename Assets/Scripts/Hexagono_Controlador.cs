@@ -159,6 +159,15 @@ public class Hexagono_Controlador : MonoBehaviour
 #endif
     }
 
+    private void PerdeGiro()
+    {
+        Perde();
+        this.ligado = true;
+        StopAllCoroutines();
+        FadeIn(alphaOn);
+        Pisca();
+    }
+
     public void Desliga()
     {
         // só desliga se estiver ligado (verificação por 'DesligaTudo')
@@ -255,14 +264,10 @@ public class Hexagono_Controlador : MonoBehaviour
                 {
                     i = -1; // é incrementado pra 0 quando volta no for
                     giros++;
-                    if (giros > 2 && Main_Jogo.pontos > 2)
+                    if (giros > 2 && ligados.Count > 2)
                     {
-                        Perde();
                         giros = 0;
-                        this.ligado = true;
-                        StopAllCoroutines();
-                        FadeIn(alphaOn);
-                        Pisca();
+                        PerdeGiro();
                     }
                 }
             }
@@ -282,14 +287,10 @@ public class Hexagono_Controlador : MonoBehaviour
                 {
                     i = 6; // é decrementado pra 5 quando volta no for
                     giros++;
-                    if (giros > 2)
+                    if (giros > 2 && ligados.Count > 2)
                     {
-                        Perde();
                         giros = 0;
-                        this.ligado = true;
-                        StopAllCoroutines();
-                        FadeIn(alphaOn);
-                        Pisca();
+                        PerdeGiro();
                     }
                 }
             }
